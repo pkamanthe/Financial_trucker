@@ -9,7 +9,7 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
 
-    # One-to-many relationship: One user can have many financial records
+    
     financial_records = relationship("FinancialRecord", back_populates="user")
 
     def __repr__(self):
@@ -19,11 +19,11 @@ class FinancialRecord(Base):
     __tablename__ = 'financial_records'
     id = Column(Integer, primary_key=True)
     amount = Column(Float, nullable=False)
-    type = Column(String, nullable=False)  # 'income' or 'expense'
+    type = Column(String, nullable=False)  
     date = Column(Date, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"))
 
-    # Back reference to user
+    
     user = relationship("User", back_populates="financial_records")
 
     def __repr__(self):
