@@ -1,5 +1,5 @@
 import sys
-from datetime import date
+from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base, User, FinancialRecord
@@ -11,108 +11,146 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 def init_db():
-    # Initialize Database
+    """Initialize the database and create tables."""
     Base.metadata.create_all(engine)
     print("Database Initialized")
 
 def create_user():
-    # Create new user
-    name = input("Enter User name: ")
-    email = input("Enter User email: ")
+    """Create a new user."""
+    name = input("Enter User name: ").strip()
+    email = input("Enter User email: ").strip()
     user = User(name=name, email=email)
     session.add(user)
     session.commit()
     print(f"User '{name}' created with ID {user.id}")
 
-def create_financial_record():
-    # Create a financial record
-    user_id = int(input("Enter User ID for the financial record: "))
-    user = session.get(User, user_id)
-    if not user:
-        print(f"User with ID {user_id} does not exist.")
+def view_users():
+    """View all users in the system."""
+    users = session.query(User).all()
+    if not users:
+        print("No users found.")
         return
-    amount = float(input("Enter the amount: "))
-    type_ = input("Enter the type ('income' or 'expense'): ").lower()
-    date_ = input("Enter the date (YYYY-MM-DD): ")
-    record = FinancialRecord(amount=amount, type=type_, date=date_, user_id=user_id)
-    session.add(record)
-    session.commit()
-    print(f"Financial record created with ID {record.id} for User '{user.name}'.")
+
+    print("\nUsers:")
+    for user in users:
+        print(f"ID: {user.id}, Name: {user.name}, Email: {user.email}")
+
+def create_financial_record():
+    """Create a new financial record for a user."""
+    try:
+        user_id = int(input("Enter User ID for the financial record: ").strip())
+        user = session.get(User, user_id)
+        if not user:
+            print(f"User with ID {user_id} does not exist.")
+            return
+
+        amount = float(input("Enter the amount: ").strip())
+        type_ = input("Enter the type ('income' or 'expense'): ").strip().lower()
+        if type_ not in ['income', 'expense']:
+            print("Invalid type. Please enter 'income' or 'expense'.")
+            return
+
+        date_ = input("Enter the date (YYYY-MM-DD): ").strip()
+        date_ = datetime.strptime(date_, "%Y-%m-%d").date()
+
+        record = FinancialRecord(amount=amount, type=type_, date=date_, user_id=user_id)
+        session.add(record)
+        session.commit()
+        print(f"Financial record created with ID {record.id} for User '{user.name}'.")
+    except ValueError as ve:
+        print(f"Error: {ve}. Please ensure your inputs are correct.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 def update_financial_record():
-    record_id = int(input("Enter Financial Record ID to update: "))
-    record = session.get(FinancialRecord, record_id)
-    if not record:
-        print(f"Financial record with ID {record_id} does not exist.")
-        return
-    record.amount = float(input(f"Enter new amount (current: {record.amount}): ") or record.amount)
-    record.type = input(f"Enter new type ('income' or 'expense', current: {record.type}): ") or record.type
-    record.date = input(f"Enter new date (current: {record.date}): ") or record.date
-    session.commit()
-    print(f"Financial record ID {record_id} updated successfully.")
+    """Update an existing financial record."""
+    try:
+        record_id = int(input("Enter Financial Record ID to update: ").strip())
+        record = session.get(FinancialRecord, record_id)
+        if not record:
+            print(f"Financial record with ID {record_id} does not exist.")
+            return
+
+        record.amount = float(input(f"Enter new amount (current: {record.amount}): ").strip() or record.amount)
+        record.type = input(f"Enter new type ('income' or 'expense', current: {record.type}): ").strip() or record.type
+        new_date = input(f"Enter new date (YYYY-MM-DD, current: {record.date}): ").strip()
+        if new_date:
+            record.date = datetime.strptime(new_date, "%Y-%m-%d").date()
+
+        session.commit()
+        print(f"Financial record ID {record_id} updated successfully.")
+    except ValueError as ve:
+        print(f"Error: {ve}. Please ensure your inputs are correct.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 def delete_financial_record():
-    record_id = int(input("Enter Financial Record ID to delete: "))
-    record = session.get(FinancialRecord, record_id)
+    """Delete a financial record."""
+    try:
+        record_id = int(input("Enter Financial Record ID to delete: ").strip())
+        record = session.get(FinancialRecord, record_id)
 
-    if not record:
-        print(f"Financial record with ID {record_id} does not exist. Available records are:")
-        records = session.query(FinancialRecord).all()
-        if records:
-            for rec in records:
-                print(f"ID: {rec.id}, Type: {rec.record_type}, Amount: {rec.amount}")
-        else:
-            print("No financial records available.")
-        return
+        if not record:
+            print(f"Financial record with ID {record_id} does not exist.")
+            return
 
-    session.delete(record)
-    session.commit()
-    print(f"Financial record ID {record_id} deleted successfully.")
+        session.delete(record)
+        session.commit()
+        print(f"Financial record ID {record_id} deleted successfully.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 def view_financial_records():
+    """View all financial records."""
     records = session.query(FinancialRecord).all()
     if not records:
         print("No financial records found.")
         return
+
+    print("\nFinancial Records:")
     for record in records:
-        print(record)
+        print(f"ID: {record.id}, User ID: {record.user_id}, Type: {record.type}, Amount: {record.amount}, Date: {record.date}")
 
 def track_savings_progress():
-    user_id = int(input("Enter User ID to track savings progress: "))
-    user = session.get(User, user_id)
-    if not user:
-        print(f"User with ID {user_id} does not exist.")
-        return
-    
-    # Sum all income records for the user
-    total_income = sum(record.amount for record in user.financial_records if record.type == "income")
-    
-    # Sum all expense records for the user
-    total_expenses = sum(record.amount for record in user.financial_records if record.type == "expense")
-    
-    # Calculate total savings
-    savings = total_income - total_expenses
-    
-    # Display results
-    print(f"User '{user.name}' savings progress:")
-    print(f"Total Income: {total_income}")
-    print(f"Total Expenses: {total_expenses}")
-    print(f"Total Savings: {savings}")
+    """Track savings progress for a specific user."""
+    try:
+        user_id = int(input("Enter User ID to track savings progress: ").strip())
+        user = session.get(User, user_id)
+        if not user:
+            print(f"User with ID {user_id} does not exist.")
+            return
+
+        total_income = sum(record.amount for record in user.financial_records if record.type == "income")
+        total_expenses = sum(record.amount for record in user.financial_records if record.type == "expense")
+        savings = total_income - total_expenses
+
+        print(f"\nUser '{user.name}' savings progress:")
+        print(f"Total Income: {total_income}")
+        print(f"Total Expenses: {total_expenses}")
+        print(f"Total Savings: {savings}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 def view_reports():
-    # Reports: View income and expenses by user
-    user_id = int(input("Enter User ID for report: "))
-    user = session.get(User, user_id)
-    if not user:
-        print(f"User with ID {user_id} does not exist.")
-        return
-    print(f"Financial Report for User '{user.name}' (ID: {user.id}):")
-    total_income = sum(record.amount for record in user.financial_records if record.type == "income")
-    total_expenses = sum(record.amount for record in user.financial_records if record.type == "expense")
-    print(f"Total Income: {total_income}")
-    print(f"Total Expenses: {total_expenses}")
+    """Generate a financial report for a specific user."""
+    try:
+        user_id = int(input("Enter User ID for report: ").strip())
+        user = session.get(User, user_id)
+        if not user:
+            print(f"User with ID {user_id} does not exist.")
+            return
+
+        total_income = sum(record.amount for record in user.financial_records if record.type == "income")
+        total_expenses = sum(record.amount for record in user.financial_records if record.type == "expense")
+
+        print(f"\nFinancial Report for User '{user.name}' (ID: {user.id}):")
+        print(f"Total Income: {total_income}")
+        print(f"Total Expenses: {total_expenses}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 def main_menu():
+    """Display the main menu and handle user actions."""
     while True:
         print("\nWelcome to the Financial Record Application. What would you like to do?")
         print("1. Create User")
@@ -120,8 +158,10 @@ def main_menu():
         print("3. Update Financial Record")
         print("4. Delete Financial Record")
         print("5. View All Financial Records")
-        print("6. Exit")
-        choice = input("Enter your choice: ")
+        print("6. Track Savings Progress")
+        print("7. View Users")
+        print("8. Exit")
+        choice = input("Enter your choice: ").strip()
 
         if choice == "1":
             create_user()
@@ -134,7 +174,11 @@ def main_menu():
         elif choice == "5":
             view_financial_records()
         elif choice == "6":
-            print("Exiting.......")
+            track_savings_progress()
+        elif choice == "7":
+            view_users()
+        elif choice == "8":
+            print("Exiting...")
             sys.exit()
         else:
             print("Invalid choice. Please try again.")
